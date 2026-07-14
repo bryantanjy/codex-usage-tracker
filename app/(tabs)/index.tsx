@@ -1,98 +1,193 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+type UsageData = {
+  planType: string;
+  fiveHour: {
+    usedPercent: number;
+    resetsAt: number | null;
+  };
+  weekly: {
+    usedPercent: number;
+    resetsAt: number | null;
+  };
+  freeReset: number;
+  summary: {
+    lifetimeTokens: number;
+    peakDailyTokens: number;
+    longestRunningTurnSec: number;
+    currentStreakDays: number;
+    longestStreakDays: number;
+  };
+};
+
+const API_URL = "http://192.168.4.61:3001";
+// Replace this IP with your computer's IPv4 address.
+
+function formatResetTime(timestamp: number | null) {
+  if (!timestamp) return "Unknown";
+
+  return new Date(timestamp * 1000).toLocaleString();
+}
+
+function formatNumber(value: number) {
+  return value.toLocaleString();
+}
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const [usage, setUsage] = useState<UsageData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  async function loadUsage() {
+    try {
+      setLoading(true);
+      setError("");
+
+      const response = await fetch(`${API_URL}/usage`);
+
+      if (!response.ok) {
+        throw new Error("Server returned an error");
+      }
+
+      const data = await response.json();
+      setUsage(data);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to connect to usage server"
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadUsage();
+  }, []);
+
+  return (
+    <ScrollView contentContainerStyle={styles.container}>
+      <Text style={styles.title}>Codex Usage</Text>
+
+      {loading && <ActivityIndicator size="large" />}
+
+      {error !== "" && (
+        <View style={styles.errorCard}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      )}
+
+      {usage && (
+        <>
+          <View style={styles.card}>
+            <Text style={styles.label}>5-hour usage</Text>
+            <Text style={styles.value}>
+              {usage.fiveHour.usedPercent}%
+            </Text>
+            <Text style={styles.smallText}>
+              Resets: {formatResetTime(usage.fiveHour.resetsAt)}
+            </Text>
+          </View>
+
+          <View style={styles.card}>
+            <Text style={styles.label}>Weekly usage</Text>
+            <Text style={styles.value}>
+              {usage.weekly.usedPercent}%
+            </Text>
+            <Text style={styles.smallText}>
+              Resets: {formatResetTime(usage.weekly.resetsAt)}
+            </Text>
+          </View>
+
+          <View style={styles.card}>
+            <Text style={styles.label}>Lifetime tokens</Text>
+            <Text style={styles.value}>
+              {formatNumber(usage.summary.lifetimeTokens)}
+            </Text>
+          </View>
+
+          <View style={styles.card}>
+            <Text style={styles.label}>Peak daily tokens</Text>
+            <Text style={styles.value}>
+              {formatNumber(usage.summary.peakDailyTokens)}
+            </Text>
+          </View>
+
+          <View style={styles.card}>
+            <Text style={styles.label}>Free full resets</Text>
+            <Text style={styles.value}>{usage.freeReset}</Text>
+          </View>
+        </>
+      )}
+
+      <Pressable style={styles.button} onPress={loadUsage}>
+        <Text style={styles.buttonText}>Refresh Usage</Text>
+      </Pressable>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: {
+    flexGrow: 1,
+    backgroundColor: "#111827",
+    padding: 24,
+    paddingTop: 70,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  title: {
+    color: "#ffffff",
+    fontSize: 30,
+    fontWeight: "bold",
+    marginBottom: 24,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  card: {
+    backgroundColor: "#1f2937",
+    padding: 20,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  label: {
+    color: "#d1d5db",
+    fontSize: 16,
+  },
+  value: {
+    color: "#ffffff",
+    fontSize: 28,
+    fontWeight: "bold",
+    marginVertical: 6,
+  },
+  smallText: {
+    color: "#9ca3af",
+    fontSize: 14,
+  },
+  button: {
+    backgroundColor: "#2563eb",
+    padding: 16,
+    borderRadius: 10,
+    alignItems: "center",
+    marginTop: 8,
+  },
+  buttonText: {
+    color: "#ffffff",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  errorCard: {
+    backgroundColor: "#7f1d1d",
+    padding: 16,
+    borderRadius: 10,
+    marginBottom: 16,
+  },
+  errorText: {
+    color: "#ffffff",
   },
 });
